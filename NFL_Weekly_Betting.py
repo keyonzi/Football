@@ -18,7 +18,7 @@ pd.set_option('display.max_columns', 25)
 pd.set_option('display.max_rows', 5000)
 
 
-# adding week numbers to each week's csv, then making a consolodated df with all the week numbers
+# adding week numbers to each week's csv, then making a consolidated df with all the week numbers
 WEEKLY_BASE_URL = 'data/weekly/2019/week{}.csv'
 
 var_df = pd.DataFrame()
