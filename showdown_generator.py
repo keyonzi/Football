@@ -3,8 +3,13 @@ import numpy as np
 import warnings
 from player import Player
 import copy
+from datetime import datetime
+from collections import Counter
 
 from sys import argv
+
+# timing the script
+begin_time = datetime.now()
 
 warnings.filterwarnings('ignore')
 
@@ -16,34 +21,58 @@ pd.set_option('display.max_columns', 25)
 pd.set_option('display.max_rows', 5000)
 
 
+# fixing the names in DST so PFF matches with DK salaries
+def fix_defense(player):
+    if player.find('DST') != -1:
+        player = player[:-3]
+        print(player)
+    return player
+
+
 #           load data sources
 pff_projections = 'data/PFFprojections2020Week1.csv'
 df_pff = pd.read_csv(pff_projections)
 print(df_pff.head())
 
+# applying defesnse fix function
+df_pff['playerName'] = df_pff['playerName'].apply(fix_defense)
+print(df_pff.head())
+
+
 dk_salaries = 'data/DKSalaries.csv'
-df_dk = pd.read_csv(dk_salaries, skiprows=7) #because of format from DK, need to skip the first 7 rows
+df_dk = pd.read_csv(dk_salaries, skiprows=7) # because of format from DK, need to skip the first 7 rows
 # cleaning up DKSalary download
 df_dk = df_dk.drop(df_dk.columns[[0, 1, 2, 3, 4, 5, 6]], axis=1)
 df_dk = df_dk.drop(['Name + ID', 'ID', 'Game Info'], 1)
 print(df_dk.head())
 
-
-
-#print(type(df_pff['Roster Position'][3]))
-
-
 #       add projection to salaries
-df_pff_proj = df_pff[['playerName', 'fantasyPoints']]   #creating a new temp table to merge
+df_pff_proj = df_pff[['playerName', 'fantasyPoints']]   # creating a new temp table to merge
 df_pff_proj['Name'] = df_pff_proj['playerName']
-df_dk = pd.merge(df_dk,df_pff_proj,on='Name', how='inner')
+df_dk = pd.merge(df_dk, df_pff_proj, on='Name', how='left')
 df_dk = df_dk.drop(['playerName'], axis=1)
 print(df_dk.head())
+
+# making a list of the teams for use in checking lineups, based on DK download
+print("MAKING LIST")
+team_list = df_dk.TeamAbbrev.to_list()
+set_team_list = set(team_list)
+team_list = list(set_team_list)
+# for i in range(len(team_list)):
+#     print(team_list[i])
+team_count = Counter(team_list)
+# reset count to 0
+team_count[team_list[0]] = 0
+team_count[team_list[1]] = 0
 
 # add captain multiplier to projections in table
 df_dk["fantasyPoints"] = np.where(df_dk["Roster Position"] == 'CPT', round(df_dk['fantasyPoints'] * 1.5, 2), df_dk['fantasyPoints'])
 df_dk['Roster'] = df_dk['Roster Position']
 df_dk = df_dk.drop(['Roster Position'], axis=1)
+print(df_dk.head())
+
+# adding average fantasy points, for 0 projections
+df_dk['fantasyPoints'] = df_dk['fantasyPoints'].fillna(df_dk['AvgPointsPerGame'])
 print(df_dk.head())
 
 
@@ -74,45 +103,27 @@ for index, row in df_dk.iterrows():
 # a test to see that the object is set correctly
 for i in cpt_list:
     print(i.__str__())
-    print(i.ros)
+    # print(i.ros)
 
 for i in flx_list:
     print(i.__str__())
-    print(i.ros)
+    # print(i.ros)
 
 for i in players_list:
     print(i.__str__())
 
 #TODO: for testing loop in recursion shortening captatin list
-cpt_list = cpt_list[:2]
-flx_list = flx_list[:6]
+# cpt_list = cpt_list[:12]
+# flx_list = flx_list[:12]
 
 
 #           time for the backtracking recursion hopefully
-MAX_SALARY = 50000
+
+MAX_SALARY = 50000.0
 max_total = 0
 min_total = 0
 lineup_count = 0
 ROSTER_SIZE = 6
-
-# example of how to add rows line by line
-#df_final = pd.DataFrame(columns=['Test', 'Scooby', 'Doo'])
-#df_final = df_final.append({'Test': i.name}, ignore_index=True)
-# df_final.loc[1] = i.name you can also do it this way via loops
-#print(df_final.head())
-
-Roster = {'cpt': {'name': 'Bob', 'pro': 22.3, 'salary': 20},
-     'flx1': {'name': 'Kim', 'pro': 22.3, 'salary': 10},
-     'flx2': {'name': 'Sam', 'pro': 22.3, 'salary': 8},
-    'flx3': {'name': 'Kim', 'pro': 10.3, 'salary': 30},
-    'flx4': {'name': 'Kim', 'pro': 15, 'salary': 22},
-    'flx5': {'name': 'Kim', 'pro': 22.3, 'salary': 5},
-          }
-
-# roster2 = {'cpt': ['bob', 'test'], 'pro': [22.4, 35.4], 'salary': [20, 15],
-#         'flx1': ['scoob', 'daffy'], 'pro': [18.4, 12.4], 'salary': [10, 15],
-#         'flx2': ['baby', 'zoe'], 'pro': [18.4, 12.4], 'salary': [10, 15],
-#            }
 
 # create the dataframe that will hold all the lineups
 df_final = pd.DataFrame(columns=['CPT', 'Proj', 'Salary', 'flx1', 'Proj1', 'Salary1', 'flx2', 'Proj2', 'Salary2',
@@ -123,25 +134,32 @@ df_final = pd.DataFrame(columns=['CPT', 'Proj', 'Salary', 'flx1', 'Proj1', 'Sala
 # in order to use backtracking, we need a valid check. so this is attempt to make a check function
 
 def is_valid_roster(df_temp):
-    result = False
     df = df_temp
-    if df.iat[0, 19] > 0:
-        result = True
-    return result
+
+    # setting salary column
+    df_salary = df[{'Salary', 'Salary1', 'Salary2', 'Salary3', 'Salary5'}]
+    df_salary['Total Salary'] = df_salary.sum(axis=1)
+    df.at[0, 'Total Salary'] = df_salary.at[0, 'Total Salary']
+
+    # calculating the total projection
+    df_proj = df[{'Proj', 'Proj1', 'Proj2', 'Proj3', 'Proj4', 'Proj5'}]
+    df_proj['Total Proj'] = df_proj.sum(axis=1)
+    df.at[0, 'Total Proj'] = df_proj.at[0, 'Total Proj']
+
+    return df
 
 df_temp = pd.DataFrame(columns=['CPT', 'Proj', 'Salary', 'flx1', 'Proj1', 'Salary1', 'flx2', 'Proj2', 'Salary2',
                                  'flx3', 'Proj3', 'Salary3', 'flx4', 'Proj4', 'Salary4', 'flx5', 'Proj5', 'Salary5',
                                  'Total Proj', 'Total Salary'])
 
-#df_temp = df_temp.astype({'flx1': 'string', 'flx2': 'string', 'flx3': 'string', 'flx4': 'string', 'flx5': 'string'}).dtypes
-df_temp['flx1']= df_temp['flx1'].astype(str)
 
-def create_roster(captains, flex, df_temp, slot, df_final):
+def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
     cpt = copy.deepcopy(captains)
     flex = copy.deepcopy(flex)
     df = df_temp
     df_f = df_final
     i = slot
+    team_ct = team_counter
 
     # i feel like i shouldn't need this, cause im doing it to the temp object being passed in
     df['flx1'] = df['flx1'].astype(str)
@@ -150,118 +168,134 @@ def create_roster(captains, flex, df_temp, slot, df_final):
     df['flx4'] = df['flx4'].astype(str)
     df['flx5'] = df['flx5'].astype(str)
 
-
-
-    # df = df.append({'CPT': cpt[5].name, 'Proj': cpt[5].proj, 'Salary': cpt[5].sal,
-    #                 'flx1': flex[3].name, 'Proj1': flex[3].proj, 'Salary1': flex[3].sal,
-    #                 'Total Salary': 0}, ignore_index=True)
-
-    #   working on figuring out the stopping point fo the backtracking
-    # if df.iat[0, 19] > 0:
-    #     return
-
-
-    #while cpt or flex is not empty:
-    print(i)
     if i > 5:
-        print('last check_____________')
-        print(df)
-        df_f = df_f.append(df)
-        print(df_f)
-        return df
+        df = is_valid_roster(df)
+
+        if team_ct[team_list[0]] == 6 or team_ct[team_list[1]] == 6:
+            return df_f
+
+        if df.at[0, 'Total Salary'] < MAX_SALARY:
+            df_f = df_f.append(df, ignore_index=True)
+
+        return df_f
     else:
-        print("This is I LOOP:" + str(i))
-        if cpt and flex:
-            print('TRUE')
-        while cpt and flex:
-            print("This is the cpt COUNT " + str(len(cpt)))
-            print("This is the flx COUNT " + str(len(flex)))
-            if i == 0:
+        for j in range(len(flex)):
+            if i == 0 and len(cpt) != 0:
+                # setting the captain
                 captain_player = cpt.pop(0)
-                print("this is your captain:")
-                print(captain_player)
-                #df = df.append({'CPT': captain_player.name, 'Proj': captain_player.proj, 'Salary': captain_player.sal}, ignore_index=True)
                 df.at[0, 'CPT'] = captain_player.name
                 df.at[0, 'Proj'] = captain_player.proj
                 df.at[0, 'Salary'] = captain_player.sal
-                df = create_roster(cpt, flex, df, i + 1, df_f)
-                print("Captain Loop:")
-
-                #i = i - 1
-                #df = df.iloc[0:, 3:]
-                print(df)
-
-                #cpt = cpt.append(captain_player)
-
-            else:
+                # counting the team for the player
+                team_ct[captain_player.tm] += 1
+                df_f = create_roster(cpt, flex, df, i + 1, df_f, team_ct)
+                # backtracking the count
+                team_ct[captain_player.tm] -= 1
+            elif i > 0:
+                # setting the flex players, trying all till none left
                 flex_player = flex.pop(0)
-                print('The is your FLEX PLAYER')
-                print(flex_player)
-                #df = df.append({'flx1': flex_player.name, 'Proj1': flex_player.proj, 'Salary1': flex_player.sal}, ignore_index=True)
+                captain_player = df.iat[0, 0]
+                # if the flex is same as captain, skip
+                if captain_player == flex_player.name:
+                    continue
+                # counting the team for the player
+                team_ct[flex_player.tm] += 1
+                # setting the cells as the flex player
                 df.at[0, 'flx{}'.format(i)] = flex_player.name
                 df.at[0, 'Proj{}'.format(i)] = flex_player.proj
                 df.at[0, 'Salary{}'.format(i)] = flex_player.sal
-                df = create_roster(cpt, flex, df, i + 1, df_f)
+                df_f = create_roster(cpt, flex, df, i + 1, df_f, team_ct)
 
-                #df.at[0, 'flx{}'.format(i)] = np.nan
-                #df.at[0, 'Proj{}'.format(i)] = np.nan
-                #df.at[0, 'Salary{}'.format(i)] = np.nan
+                # rolling back the change (backtracking
+                df.at[0, 'flx{}'.format(i)] = np.nan
+                df.at[0, 'Proj{}'.format(i)] = np.nan
+                df.at[0, 'Salary{}'.format(i)] = np.nan
+                team_ct[flex_player.tm] -= 1
 
-                #i = i - 1
-                print(i)
+    index = df_f.index
+    print("Number of Rows: " + str(len(index)))
+    return df_f
 
-                # df = df.iloc[0:, 0:(i+2)]
-                # print("flex loop")
-                # print(df)
-                #flex = flex.append(flex_player)
+def edit_avail_players(captains, flex):
+    cpt_list = captains
+    flx_list = flex
+
+    print('Here is your player pool, select the player you wish to remove:', end="\n\n")
+    for i in range(len(flx_list)):
+        print(str(i) + ': ', end="")
+        print(flx_list[i].name)
+
+    # print()
+    # choice = ' '
+    # while choice != '':
+    #     choice = input('Selection: ')
+    #     try:
+    #         del flx_list[int(choice)]
+    #         del cpt_list[int(choice)]
+    #     except ValueError:
+    #         print('Lineup Generator will begin now...')
+    #         print('_' * 50)
+    #         continue
+    #     except IndexError:
+    #         print('Selection not valid. Please try again.')
+    #
+    #     # deleting your selected choice
+    #
+    #     print('Here is your player pool, select the player you wish to remove:', end="\n\n")
+    #     for i in range(len(flx_list)):
+    #         print(str(i) + ': ', end="")
+    #         print(flx_list[i].name)
+    #
+    #     print()
+    return cpt_list, flx_list
+
+def remove_players(captains, flex):
+    cpt_list = captains
+    flx_list = flex
+
+    choice = ' '
+    while choice != '':
+        choice = input('Selection: ')
+        try:
+            del flx_list[int(choice)]
+            del cpt_list[int(choice)]
+        except ValueError:
+            print('Lineup Generator will begin now...')
+            print('_' * 50)
+            continue
+        except IndexError:
+            print('Selection not valid. Please try again.')
+
+        # deleting your selected choice
+
+        print('Here is your player pool, select the player you wish to remove:', end="\n\n")
+        for i in range(len(flx_list)):
+            print(str(i) + ': ', end="")
+            print(flx_list[i].name)
+
+        print()
+    return cpt_list, flx_list
 
 
-    # for i in range(len(cpt)):
-    #     for j in range(len(flex)):
-    #         df = df.append({'CPT': cpt[i].name, 'Proj': cpt[i].proj, 'Salary': cpt[i].sal,
-    #                     'flx1': flex[j].name, 'Proj1': flex[j].proj, 'Salary1': flex[j].sal,
-    #                     'Total Salary': j}, ignore_index=True)
-    # if is_valid_roster(df):
-    #     return
-
-    #print(df)
-
-    return df
-
+# building player pool
+cpt_list, flx_list = edit_avail_players(cpt_list, flx_list)
 
 slot_number = 0
 df_test = pd.DataFrame()
-df_test = df_test.append(create_roster(cpt_list, flx_list, df_temp, slot_number, df_final))
+df_final = create_roster(cpt_list, flx_list, df_temp, slot_number, df_final, team_count)
 print('final product')
-print(df_test)
-#print(df_final.iloc[0,3:])
-#df_final = df_final.iloc[0:, 3:] #this keeps the last part of the table
+print(df_final)
+print('-----------------')
 
-# df_final = df_final.append({'CPT': cpt_list[5].name, 'Proj': cpt_list[5].proj, 'Salary': cpt_list[5].sal,
-#                 'flx1': flx_list[3].name, 'Proj1': flx_list[3].proj, 'Salary1': flx_list[3].sal,
-#                 'Total Salary': 0}, ignore_index=True)
+# sort by projections
+df_final = df_final.sort_values(by=['Total Proj'], ascending=False)
+print(df_final)
 
-#df_final = df_final.iloc[0:1, (1+2):]
-
-
-# print("flex loop")
-# print(df_final)
-#
-# print(df_final.xs(['flx1','Proj1'], axis=1))
-#df_final.at[0, 'flx1'] = np.nan
-#print(type(df_final['Proj'][0]))
-#print(df_final)
-
-#create_roster(cpt_list, flx_list, df_temp, slot_number)
-
-#print(df_final)
+print('-----------------')
+# taking the top 20
+df_final = df_final.head(n=20)
+print(df_final)
 
 
-
-#test = pd.DataFrame.from_dict(roster2)
-#print(test)
-
-#def valid_linup(pos, lineup):
-
-
-
+# calculating how long it takes to run
+print(datetime.now() - begin_time)

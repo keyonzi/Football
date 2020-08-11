@@ -24,3 +24,6 @@ class Player:
             self.used = False
         else:
             self.used = True
+
+    def set_multiplier(self, mult):
+        self.mult = mult
