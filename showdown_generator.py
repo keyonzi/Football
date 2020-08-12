@@ -112,7 +112,7 @@ for i in flx_list:
 for i in players_list:
     print(i.__str__())
 
-#TODO: for testing loop in recursion shortening captatin list
+#for testing loop in recursion shortening captain list
 # cpt_list = cpt_list[:12]
 # flx_list = flx_list[:12]
 
@@ -184,7 +184,7 @@ def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
                 # setting the captain
                 captain_player = cpt.pop(0)
                 df.at[0, 'CPT'] = captain_player.name
-                df.at[0, 'Proj'] = captain_player.proj
+                df.at[0, 'Proj'] = captain_player.proj * captain_player.mult
                 df.at[0, 'Salary'] = captain_player.sal
                 # counting the team for the player
                 team_ct[captain_player.tm] += 1
@@ -202,7 +202,7 @@ def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
                 team_ct[flex_player.tm] += 1
                 # setting the cells as the flex player
                 df.at[0, 'flx{}'.format(i)] = flex_player.name
-                df.at[0, 'Proj{}'.format(i)] = flex_player.proj
+                df.at[0, 'Proj{}'.format(i)] = flex_player.proj * flex_player.mult
                 df.at[0, 'Salary{}'.format(i)] = flex_player.sal
                 df_f = create_roster(cpt, flex, df, i + 1, df_f, team_ct)
 
@@ -216,42 +216,71 @@ def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
     print("Number of Rows: " + str(len(index)))
     return df_f
 
-def edit_avail_players(captains, flex):
+def modify_players(captains, flex):
     cpt_list = captains
     flx_list = flex
 
-    print('Here is your player pool, select the player you wish to remove:', end="\n\n")
     for i in range(len(flx_list)):
         print(str(i) + ': ', end="")
         print(flx_list[i].name)
 
-    # print()
-    # choice = ' '
-    # while choice != '':
-    #     choice = input('Selection: ')
-    #     try:
-    #         del flx_list[int(choice)]
-    #         del cpt_list[int(choice)]
-    #     except ValueError:
-    #         print('Lineup Generator will begin now...')
-    #         print('_' * 50)
-    #         continue
-    #     except IndexError:
-    #         print('Selection not valid. Please try again.')
-    #
-    #     # deleting your selected choice
-    #
-    #     print('Here is your player pool, select the player you wish to remove:', end="\n\n")
-    #     for i in range(len(flx_list)):
-    #         print(str(i) + ': ', end="")
-    #         print(flx_list[i].name)
-    #
-    #     print()
+    choice = ' '
+    while choice != '':
+        choice = input('Selection: ')
+        try:
+            flex_p = flx_list[int(choice)]
+            cpt_p = cpt_list[int(choice)]
+        except IndexError:
+            print('Selection not valid. Please try again.')
+            continue
+        except ValueError:
+            choice = ''
+            continue
+
+        # updating your selected choice
+        print("Player Selected: " + flex_p.name)
+        print("Player Current Multiplier: " + str(flex_p.mult))
+        mult = float(input("Enter multiplier: "))
+        flex_p.set_multiplier(mult)
+        cpt_p.set_multiplier(mult)
+
+        #[4 if x == 1 else x for x in a]
+        flx_list = [flex_p if x == flex_p else x for x in flx_list]
+        cpt_list = [cpt_list if x == cpt_list else x for x in cpt_list]
+
+        print('Here is your player pool, select the player you wish to update:', end="\n\n")
+        for i in range(len(flx_list)):
+            print(str(i) + ': ', end="")
+            print(flx_list[i].name)
+
+        print()
+    return cpt_list, flx_list
+
+def edit_avail_players(captains, flex):
+    cpt_list = captains
+    flx_list = flex
+
+    # print('Here is your player pool. 0 - to remove players, 1 - change modifiers, 2-exit and run generator:', end="\n\n")
+    print("")
+    choice = 0
+    while choice != 3:
+        choice = int(input('Choose your option: 0- to remove players, 1- change modifiers, 2- exit and run generator: '))
+        if choice == 0:
+            cpt_list, flx_list = remove_players(cpt_list, flx_list)
+        elif choice == 1:
+            cpt_list, flx_list = modify_players(cpt_list, flx_list)
+        else:
+            break
+
     return cpt_list, flx_list
 
 def remove_players(captains, flex):
     cpt_list = captains
     flx_list = flex
+
+    for i in range(len(flx_list)):
+        print(str(i) + ': ', end="")
+        print(flx_list[i].name)
 
     choice = ' '
     while choice != '':
@@ -260,7 +289,7 @@ def remove_players(captains, flex):
             del flx_list[int(choice)]
             del cpt_list[int(choice)]
         except ValueError:
-            print('Lineup Generator will begin now...')
+            print('Main menu')
             print('_' * 50)
             continue
         except IndexError:
@@ -279,6 +308,19 @@ def remove_players(captains, flex):
 
 # building player pool
 cpt_list, flx_list = edit_avail_players(cpt_list, flx_list)
+
+# a test to see that the object is set correctly
+for i in cpt_list:
+    print(i.__str__())
+    # print(i.ros)
+
+for i in flx_list:
+    print(i.__str__())
+    # print(i.ros)
+
+for i in players_list:
+    print(i.__str__())
+
 
 slot_number = 0
 df_test = pd.DataFrame()
