@@ -250,25 +250,33 @@ def make_heatmap(df):
     heatmap = sns.heatmap(df.corr(), mask=mask, cmap=sns.diverging_palette(0, 230))
     return heatmap
 
-#make_heatmap(result)
 
-
-#goes through every team and plots points against spread (use later)
-for k, v in odds_team_list.items():
-    team_result = result[result['Tm'] == v]
-    sns.lmplot(data=team_result, x='Spread', y='PPRFantasyPoints', hue='Pos', height=10, fit_reg=True)
-    #make_heatmap(team_result)
-    plt.title(v)    # adds title of team
-    plt.show()
-
-#loop for getting team and position based heatmap
-for k, v in odds_team_list.items():
-    team_result = result[result['Tm'] == v]
-    for pos, abr in position_list.items():
-        team_pos_result = team_result[team_result['Pos'] == abr]
-        make_heatmap(team_pos_result)
+# goes through every team and plots points against spread (use later)
+def linear_regress_test(odds, type='Spread'):
+    xaxis = type
+    for k, v in odds.items():
+        team_result = result[result['Tm'] == v]
+        sns.lmplot(data=team_result, x=xaxis, y='PPRFantasyPoints', hue='Pos', height=10, fit_reg=True)
         plt.title(v)    # adds title of team
         plt.show()
+
+
+def create_team_heatmaps(odds, positions):
+    for k, v in odds.items():
+        team_result = result[result['Tm'] == v]
+        for pos, abr in positions.items():
+            team_pos_result = team_result[team_result['Pos'] == abr]
+            make_heatmap(team_pos_result)
+            plt.title(v + ' ' + abr)  # adds title of team and position for heatmap
+            plt.show()
+
+# runs the heatmaps, save time by commenting out
+# create_team_heatmaps(odds_team_list, position_list)
+
+# runs linear regression graphs for every team, TIME SAVE. 'O/U' or 'Spread' are options
+graph_type = 'O/U'
+linear_regress_test(odds_team_list, graph_type)
+
 
 # try sci-learn stuff
 
