@@ -5,8 +5,14 @@ from bs4 import BeautifulSoup as BS
 import warnings
 from sys import argv
 import seaborn as sns
+from sklearn.linear_model import LinearRegression
 from matplotlib import pyplot as plt
-
+from scipy.stats import pearsonr
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from math import sqrt
+from sklearn.metrics import mean_squared_error
 
 warnings.filterwarnings('ignore')
 
@@ -26,10 +32,10 @@ var_df = pd.DataFrame()
 
 for week in range(1, 18):
     week_df = pd.read_csv(WEEKLY_BASE_URL.format(week))
-    #let's also create a week column to keep track of the weeks
+    # let's also create a week column to keep track of the weeks
     week_df['Week'] = week
     var_df = pd.concat([var_df, week_df], ignore_index=True)
-    #var_df = var_df.append(week_df, ignore_index=True) #another way of appending data
+
 
 print(var_df)
 
@@ -39,6 +45,7 @@ NFL_ODDS_2019_CSV = 'data/nflodds2019.csv'
 
 odds_df = pd.DataFrame()
 odds_df = pd.read_csv(NFL_ODDS_2019_CSV)
+
 
 # dates are currently floats. fixing them so they look like normal dates as strings
 def get_week_num(date):
@@ -54,20 +61,16 @@ def get_week_num(date):
         return (date_string)
 
 
-#converting values in date column to string so can run a function on them
-odds_df['Date'] = odds_df['Date'].apply(lambda x: str(x))   #converting to string (easier to index)
-odds_df['Date'] = odds_df['Date'].apply(lambda x: x.split('.')) #removing decimal
-odds_df['Date'] = odds_df['Date'].apply(lambda x: (x[0]))   #getting first number (dont think i need anymore)
-odds_df['Date'] = odds_df['Date'].apply(lambda x: get_week_num(x))  #applying my converion function to each row
+# converting values in date column to string so can run a function on them
+odds_df['Date'] = odds_df['Date'].apply(lambda x: str(x))   # converting to string (easier to index)
+odds_df['Date'] = odds_df['Date'].apply(lambda x: x.split('.')) # removing decimal
+odds_df['Date'] = odds_df['Date'].apply(lambda x: (x[0]))   # getting first number (dont think i need anymore)
+odds_df['Date'] = odds_df['Date'].apply(lambda x: get_week_num(x))  # applying my converion function to each row
 
 # couldn't figure out how to change where pandas starts week, so instead converting strings in date/time, subtracting
 # one from it, then running the week method and adding a column
 odds_df['Date'] = pd.to_datetime(odds_df['Date']) + pd.DateOffset(-1)
 odds_df['Week'] = odds_df['Date'].dt.week - 35  # making sure the week numbers match nfl
-
-# trying to graph a linear regression model
-
-
 
 # update team name to match weekly scoring data
 odds_team_list = {
@@ -114,18 +117,11 @@ position_list = {
 
 }
 
-
 # try to loop through to change the team names then concatenate at end
-
 odds_df['Tm'] = odds_df['Team'].map(odds_team_list)
 print(odds_df)
 
 # trying to make columns for spread and over under
-
-#using indexing you may be able to figure this out
-print(odds_df.iloc[0:4,1])
-
-
 # start working code. get rid of columns don't really need
 odds_df_slim = odds_df.drop(['Date', 'Team', '1st', '2nd', '3rd', '4th', 'Final', 'Open', '2H'], axis=1, inplace=False)
 odds_df_slim['Spread'] = '' # create empty new column
@@ -133,7 +129,7 @@ odds_df_slim['O/U'] = ''    # create empty new column
 odds_dict = odds_df_slim.to_dict()  # create a dictionary based on the dataframe you already have
 
 # loop through dictionary to update the values you need in the empty columns (now in dictionary form)
-for k, v in odds_dict['ML'].items():        #check moneyline to figure out location of spread
+for k, v in odds_dict['ML'].items():        # check moneyline to figure out location of spread
     if (k % 2) == 0 and v > 0:      # if k is even, then you have the visiting team,and can take it from there.
         odds_dict['O/U'][k] = odds_dict['Close'][k]
         odds_dict['Spread'][k] = odds_dict['Close'][k+1]
@@ -167,10 +163,117 @@ result = pd.merge(var_df, odds_df_final, how='outer', on=['Week', 'Tm'])
 result['Spread'] = pd.to_numeric(result['Spread'], errors='coerce')
 result['O/U'] = pd.to_numeric(result['O/U'], errors='coerce')
 
-# remove non starting positions
+# remove non starting positions, drop standard and half cause they suck
 result = result[result['Pos'].isin(['QB', 'TE', 'K', 'RB', 'WR'])]
+result = result.drop(['StandardFantasyPoints', 'HalfPPRFantasyPoints'], axis=1)
 
 
+# create columns for projected score, and % of fantasy points out of projected score
+def project_score(row):
+    if row['Spread'] < 0:
+        return (row['O/U']/2) - (row['Spread']/2)
+    elif row['Spread'] > 0:
+        return (row['O/U'] / 2) + (row['Spread'] / 2)
+    else:
+        return row['O/U'] / 2
+
+
+def get_next_score(row):
+    week = row['Week']
+    week = week + 1
+    player = row['Player']
+
+    if week == 17:
+        return row['PPRFantasyPoints']
+
+    answer = result.loc[(result.Player == player) & (result.Week == (week))]
+
+    if answer.empty:
+        return 0
+    answer = answer.iloc[0].at['PPRFantasyPoints']
+
+    return answer
+
+
+# apply function to have 'next week' score in table as well, also add % of team score
+result['PPRFantasyPoints_next'] = result.apply(get_next_score, axis=1)
+result['Score'] = result.apply(project_score, axis=1)
+result['% of Score'] = result['PPRFantasyPoints']/result['Score'] * 100
+
+
+# just playing around with looking at correlation for specific players
+# lamar = result[result['Player'] == 'Julio Jones']
+# print(lamar)
+# print('For the position ' + lamar.iat[0, 0] + ' the p value for ML is: ', end='')
+# print(pearsonr(lamar['PPRFantasyPoints'], lamar['ML']), end=' for O/U it is: ')
+# print(pearsonr(lamar['PPRFantasyPoints'], lamar['O/U']))
+# print(pearsonr(lamar['ML'], lamar['% of Score']))
+# print(pearsonr(lamar['O/U'], lamar['% of Score']))
+# print(pearsonr(lamar['Spread'], lamar['% of Score']))
+
+
+# looking at beginning p values before digging deep
+result = result.replace([np.nan, -np.nan], 0) # remove inf values as a result of dividing by 0
+for k, v in position_list.items():
+    pos_result = result[result['Pos'] == v]
+    print('For the position ' + str(k) + ' the p value for ML is: ', end='')
+    print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['ML']), end=' for O/U it is: ')
+    print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['O/U']))
+
+
+
+#                           going to play around with 'learn', and 'train'
+
+# replacing string for numbers (don't know why)
+pos_map = {
+    'RB': 1,
+    'WR': 2,
+    'TE': 3,
+    'QB': 4,
+    'K': 5
+}
+
+result['Pos_Num'] = result['Pos'].replace(pos_map)
+print(result)
+
+# build a model based off betting info and fantasy_points next for RBs (barely know what i'm doing)
+x = result[['ML',
+            'Spread',
+            'Score',
+            'O/U',
+            'PPRFantasyPoints',
+            'Pos_Num']].values
+
+y = result[['PPRFantasyPoints_next']].values
+
+x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=4, test_size=0.2)
+lr = LinearRegression()
+scores = cross_val_score(lr, x, y, cv=5)
+print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
+
+x_corr = result[['ML',
+                'Spread',
+                'Score',
+                'O/U',
+                'PPRFantasyPoints',
+                'Pos_Num']].corr()
+vif = pd.DataFrame(np.linalg.inv(x_corr.values), index = x_corr.index, columns=x_corr.columns)
+vif_mask = np.zeros_like(vif, dtype=np.bool); vif_mask[np.triu_indices_from(vif_mask)] = True
+
+print(vif.mask(vif_mask))
+
+# score the model
+model  = lr.fit(x_train, y_train)
+y_pred = model.predict(x_test)
+results = pd.DataFrame({'Predicted': y_pred.flatten(), 'Actual': y_test.flatten()})
+
+plt.scatter(y_test, y_pred)
+plt.show()
+
+print('Adj. R^2 for our model:', model.score(x_test, y_test))
+print('RMSE:', sqrt(mean_squared_error(y_test, y_pred)))
+
+# saving files for the future... maybe
 # checking if there is an argument to the command for '--save' so will save table to a csv for upload
 
 filename = ('2019_Weekly_Performance_Betting_Data').upper() + '.csv'
@@ -184,59 +287,51 @@ except IndexError:
     print(result.head())
 
 
-#trying graphs...
+# # trying graphs...
+# sns.set_style('whitegrid')
+#
+# # create a canvas with matplotlib
+# fig, ax = plt.subplots()
+# fig.set_size_inches(15, 10)
+#
+# # basic regression scatter plot with trendline (FAIL)
+# plot = sns.regplot(
+#     x=result['Spread'],
+#     y=result['PPRFantasyPoints'],
+#     scatter=True,)
+#
+# #plt.show()
+#
+# # try ploting again with positions colored
+#
+# #Make sure there is an adequete sample size
+#
+# fig, ax = plt.subplots()
+# fig.set_size_inches(15, 10)
+#
+#
+# #example of regplot
+# plot = sns.regplot(
+#     x=result['Spread'],
+#     y=result['PPRFantasyPoints'],
+#     scatter=True)
 
+# qb_result = result[result['PassingYds'] > 0]
+# rb_result = result[result['RushingAtt'] > 5]
+# car_result = result[result['Tm'] == 'CAR']
 
-
-sns.set_style('whitegrid')
-
-#create a canvas with matplotlib
-fig, ax = plt.subplots()
-fig.set_size_inches(15, 10)
-
-
-#print(type(result['O/U'][3]))
-
-#basic regression scatter plot with trendline (FAIL)
-plot = sns.regplot(
-    x=result['Spread'],
-    y=result['PPRFantasyPoints'],
-    scatter=True,)
-
-#plt.show()
-
-# try ploting again with positions colored
-
-#Make sure there is an adequete sample size
-
-fig, ax = plt.subplots()
-fig.set_size_inches(15, 10)
-
-
-#example of regplot
-plot = sns.regplot(
-    x=result['Spread'],
-    y=result['PPRFantasyPoints'],
-    scatter=True)
-
-
-
-qb_result = result[result['PassingYds'] > 0]
-rb_result = result[result['RushingAtt'] > 5]
-car_result = result[result['Tm'] == 'CAR']
-
-fig, ax = plt.subplots()
-fig.set_size_inches(15, 10)
-sns.scatterplot(x='Spread',
-                y='PPRFantasyPoints',
-                data=rb_result,
-                hue='Tm',
-                size='O/U',
-                )
-
-plt.show()
-#for testing single graph
-sns.lmplot(data=car_result, x='Spread', y='PPRFantasyPoints', hue='Pos', height=10, fit_reg=True)
+# fig, ax = plt.subplots()
+# fig.set_size_inches(15, 10)
+# sns.scatterplot(x='Spread',
+#                 y='PPRFantasyPoints',
+#                 data=rb_result,
+#                 hue='Tm',
+#                 size='O/U',
+#                 )
+#
+# plt.show()
+# #for testing single graph
+# sns.lmplot(data=car_result, x='Spread', y='PPRFantasyPoints', hue='Pos', height=10, fit_reg=True)
 
 
 # trying heat map stuff
@@ -270,12 +365,13 @@ def create_team_heatmaps(odds, positions):
             plt.title(v + ' ' + abr)  # adds title of team and position for heatmap
             plt.show()
 
+
 # runs the heatmaps, save time by commenting out
 # create_team_heatmaps(odds_team_list, position_list)
 
 # runs linear regression graphs for every team, TIME SAVE. 'O/U' or 'Spread' are options
 graph_type = 'O/U'
-linear_regress_test(odds_team_list, graph_type)
+# linear_regress_test(odds_team_list, graph_type)
 
 
 # try sci-learn stuff
