@@ -81,26 +81,60 @@ for year, v in dvoa_dict.items():
         df = df.filter(regex='(VOA|Week|Year|TEAM|DAVE)')
         df = df.rename(columns={'DAVE': 'WEIGHTEDDVOA'})
         df = df.rename(columns={'WEI.DVOA':'WEIGHTEDDVOA'})
+        df = df.rename(columns={'TEAM': 'Tm'})
         print(df)
         dvoa_df = dvoa_df.append(df, ignore_index=False)
 
 # removing these columns. Weighted is only used for certain years and only certain times of the year, so hard to make
 # data match up. Same with non-adjust. Dave was dropped completely in 2008. So not useful
 # put in try block, because when testing with smaller data sets, these columns may not exist
+# if i try to drop columns that don't exist, it will error. so for testing, it is easier to try and drop each one
+# depending on which years you are running, those columns may or may not exist
 # dvoa_df = dvoa_df.drop(['WEIGHTEDDVOA', 'NON-ADJTOT VOA', 'TOTALDAVE', 'TOTAL DAVE'], 1)
+
+print('pre try')
+print(dvoa_df)
 
 try:
     dvoa_df = dvoa_df.drop(['TOTALDAVE'], 1)
+except KeyError:
+    pass
+
+try:
     dvoa_df = dvoa_df.drop(['TOTAL DAVE'], 1)
+except KeyError:
+    pass
+
+try:
     dvoa_df = dvoa_df.drop(['WEIGHTEDDVOA'], 1)
+except KeyError:
+    pass
+
+try:
     dvoa_df = dvoa_df.drop(['NON-ADJTOT VOA'], 1)
 except KeyError:
     pass
 
+print('post try')
+print(dvoa_df)
+
 # changing team names so stay the same over the years, since teams move, or their abbreviations change.
-dvoa_df = dvoa_df.replace({'TEAM': {'STL': 'LAR', 'LARM': 'LAR', 'SDC': 'LAC', 'LACH': 'LAC', 'GB': 'GNB', 'JAC': 'JAX',
+dvoa_df = dvoa_df.replace({'Tm': {'STL': 'LAR', 'LARM': 'LAR', 'SDC': 'LAC', 'LACH': 'LAC', 'GB': 'GNB', 'JAC': 'JAX',
                           'JAG': 'JAX', 'KC': 'KAN', 'NE': 'NWE', 'NO': 'NOR', 'SF': 'SFO', 'TB': 'TAM', 'SD': 'LAC'}})
 
+print('post replace')
+print(dvoa_df)
+
+# need to convert all of the % into floats so can do analysis later
+dvoa_df['TOTALDVOA'] = dvoa_df['TOTALDVOA'].str.rstrip('%').astype('float') / 100.0
+# dvoa_df['WEIGHTEDDVOA'] = dvoa_df['WEIGHTEDDVOA'].str.rstrip('%').astype('float') / 100.0
+# dvoa_df['NON-ADJTOT VOA'] = dvoa_df['NON-ADJTOT VOA'].str.rstrip('%').astype('float') / 100.0
+dvoa_df['OFFENSEDVOA'] = dvoa_df['OFFENSEDVOA'].str.rstrip('%').astype('float') / 100.0
+dvoa_df['DEFENSEDVOA'] = dvoa_df['DEFENSEDVOA'].str.rstrip('%').astype('float') / 100.0
+dvoa_df['S.T.DVOA'] = dvoa_df['S.T.DVOA'].str.rstrip('%').astype('float') / 100.0
+
+print('after conversion')
+print(dvoa_df)
 
 # saving file, without parameter. Should remove later
 filename = 'DVOA_Historical_Data'.upper() + '.csv'

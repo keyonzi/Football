@@ -39,7 +39,7 @@ for year in range(2007, 2020):
         var_df = pd.concat([var_df, week_df], ignore_index=True)
 
 var_df = var_df[var_df['Pos'].isin(['QB', 'TE', 'K', 'RB', 'WR'])]
-print(var_df)
+print(var_df.head(50))
 # get rid of all the empty rows at bottom
 # var_df = var_df.dropna()
 # print(var_df)
@@ -49,6 +49,13 @@ print(var_df)
 #
 # odds_df = pd.DataFrame()
 # odds_df = pd.read_csv(NFL_ODDS_2019_CSV)
+
+# loading historical data from 2007 - 2019
+DVOA_FILE = 'data/DVOA_HISTORICAL_DATA.csv'
+dvoa_df = pd.read_csv(DVOA_FILE)
+
+print('velma')
+print(dvoa_df.head(50))
 
 NFL_ODDS_BASE = 'data/NFLOdds/nflodds{}.csv'
 odds_df = pd.DataFrame()
@@ -150,7 +157,7 @@ odds_df = odds_df.replace({'Tm': {'STL': 'LAR', 'SDG': 'LAC'}}) # compensate for
 # clean up the 'pk' values
 odds_df = odds_df.replace('pk', '0')
 
-print(odds_df.head())
+print(odds_df.head(50))
 
 # trying to make columns for spread and over under
 # start working code. get rid of columns don't really need
@@ -187,14 +194,21 @@ for k, v in odds_dict['ML'].items():        # check moneyline to figure out loca
 odds_df_final = pd.DataFrame.from_dict(odds_dict)
 
 # merge the two tables, the one for sports betting, and the weekly
-result = pd.merge(var_df, odds_df_final, how='inner', on=['Week', 'Tm', 'Year'])
+print('Scooby Doo')
+print(var_df.head(50))
+print('then...')
+print(odds_df_final.head(50))
 
+result = pd.merge(var_df, odds_df_final, how='inner', on=['Week', 'Tm', 'Year'])
+result = pd.merge(result, dvoa_df, how='inner', on=['Week', 'Tm', 'Year'])
+result = result.drop(['Unnamed: 0'], 1)
 
 print('merge result')
 print(result.head(50))
 
+
 # added this here so I can quickly spot check and make sure all the players match up with betting lines since 2007
-filename = ('merge_result_check').upper() + '.csv'
+filename = ('merge_result_check_DVOA').upper() + '.csv'
 result.to_csv('data/{}'.format(filename))
 
 
@@ -272,13 +286,21 @@ result['% of Score_next'] = result.apply(get_next_percent, axis=1)
 
 
 # looking at beginning p values before digging deep
-result = result.replace([np.nan, -np.nan], 0) # remove inf values as a result of dividing by 0
+result = result.replace([np.nan, -np.nan], 0)  # remove inf values as a result of dividing by 0
 for k, v in position_list.items():
+    if v == 'K':
+        break
     pos_result = result[result['Pos'] == v]
-    print('For the position ' + str(k) + ' the p value for ML is: ', end='')
-    print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['ML']), end=' for O/U it is: ')
-    print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['O/U']))
+    print('For the position ' + str(k) + ' the p value for Total DVOA is: ', end='')
+    # print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['ML']), end=' for O/U it is: ')
+    # print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['O/U']))
+    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['TOTALDVOA']), end=' for OFFENSEDVOA it is: ')
+    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['OFFENSEDVOA']))
+    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['DEFENSEDVOA']), end=' for S.T. it is: ')
+    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['S.T.DVOA']))
 
+print()
+print()
 
 #                           going to play around with 'learn', and 'train'
 
@@ -309,31 +331,38 @@ team1_result = result.loc[(result['Tm'] == 'HOU')]
 team2_result = result.loc[(result['Tm'] == 'KAN')]
 team_result_temp = team1_result.append(team2_result, ignore_index=True)
 
-print(team_result_temp)
+# print(team_result_temp)
 x = result[['ML',
-                        'Spread',
+
+
+                        'DEFENSEDVOA',
+                        'OFFENSEDVOA',
+                        #'Spread',
                         'Score',
-                        'O/U',
-                        'PPRFantasyPoints',
+                        #'O/U',
+                        #'PPRFantasyPoints',
                         '% of Score',
-                        'Week',
+                        #'Week',
                         'Pos_Num']].values
 
-y = result[['PPRFantasyPoints_next']].values
-# y = result[['% of Score_next']].values  # need to figure out exactly what I'm doing here.
+# y = result[['PPRFantasyPoints_next']].values
+y = result[['% of Score_next']].values  # need to figure out exactly what I'm doing here.
 
 x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=4, test_size=0.2)
 lr = LinearRegression()
-scores = cross_val_score(lr, x, y, cv=6)
+scores = cross_val_score(lr, x, y, cv=10)
 print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
 x_corr = result[['ML',
-                            'Spread',
+
+                            'DEFENSEDVOA',
+                            'OFFENSEDVOA',
+                            #'Spread',
                             'Score',
-                            'O/U',
-                            'PPRFantasyPoints',
+                            #'O/U',
+                            #'PPRFantasyPoints',
                             '% of Score',
-                            'Week',
+                            #'Week',
                             'Pos_Num']].corr()
 vif = pd.DataFrame(np.linalg.inv(x_corr.values), index= x_corr.index, columns=x_corr.columns)
 vif_mask = np.zeros_like(vif, dtype=np.bool); vif_mask[np.triu_indices_from(vif_mask)] = True
@@ -498,7 +527,7 @@ def create_team_heatmaps(odds, positions):
 # create_team_heatmaps(odds_team_list, position_list)
 
 # runs linear regression graphs for every team, TIME SAVE. 'O/U','Spread', 'ML', and column are options
-x_axis = 'ML'
+x_axis = 'OFFENSEDVOA'
 # can try running linear vs " % of Score " as well, leave blank for 'PPRFantasyPoints'
 y_axis = '% of Score'
 # linear_regress_test(odds_team_list, x_axis, y_axis)
