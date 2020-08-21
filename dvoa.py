@@ -97,10 +97,13 @@ try:
 except KeyError:
     pass
 
-print(dvoa_df)
+# changing team names so stay the same over the years, since teams move, or their abbreviations change.
+dvoa_df = dvoa_df.replace({'TEAM': {'STL': 'LAR', 'LARM': 'LAR', 'SDC': 'LAC', 'LACH': 'LAC', 'GB': 'GNB', 'JAC': 'JAX',
+                          'JAG': 'JAX', 'KC': 'KAN', 'NE': 'NWE', 'NO': 'NOR', 'SF': 'SFO', 'TB': 'TAM', 'SD': 'LAC'}})
+
 
 # saving file, without parameter. Should remove later
-filename = ('DVOA_Historical_Data').upper() + '.csv'
+filename = 'DVOA_Historical_Data'.upper() + '.csv'
 dvoa_df.to_csv('data/{}'.format(filename))
 
 try:
