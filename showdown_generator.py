@@ -148,6 +148,7 @@ def is_valid_roster(df_temp):
 
     return df
 
+
 df_temp = pd.DataFrame(columns=['CPT', 'Proj', 'Salary', 'flx1', 'Proj1', 'Salary1', 'flx2', 'Proj2', 'Salary2',
                                  'flx3', 'Proj3', 'Salary3', 'flx4', 'Proj4', 'Salary4', 'flx5', 'Proj5', 'Salary5',
                                  'Total Proj', 'Total Salary'])
@@ -244,7 +245,6 @@ def modify_players(captains, flex):
         flex_p.set_multiplier(mult)
         cpt_p.set_multiplier(mult)
 
-        #[4 if x == 1 else x for x in a]
         flx_list = [flex_p if x == flex_p else x for x in flx_list]
         cpt_list = [cpt_list if x == cpt_list else x for x in cpt_list]
 
