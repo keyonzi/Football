@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_val_score
 from math import sqrt
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import KFold
 
 warnings.filterwarnings('ignore')
 
@@ -27,7 +28,6 @@ pd.set_option('display.max_rows', 70000)
 # adding week numbers to each week's csv, then making a consolidated df with all the week numbers
 # YEAR_BASE = 'data/weekly/2/'
 WEEKLY_BASE_URL = 'data/weekly/{}/week{}.csv'
-
 var_df = pd.DataFrame()
 
 for year in range(2007, 2020):
@@ -36,31 +36,59 @@ for year in range(2007, 2020):
         # let's also create a week column to keep track of the weeks
         week_df['Week'] = week
         week_df['Year'] = year
+        week_df['Player'] = week_df['Player'].map(lambda x: x.replace('.', '').replace("\'", ""))
         var_df = pd.concat([var_df, week_df], ignore_index=True)
 
 var_df = var_df[var_df['Pos'].isin(['QB', 'TE', 'K', 'RB', 'WR'])]
+var_df = var_df.replace({'Tm': {'STL': 'LAR', 'SDG': 'LAC'}}) # compensate for acronyms changing over time
+
 print(var_df.head(50))
-# get rid of all the empty rows at bottom
-# var_df = var_df.dropna()
-# print(var_df)
 
-# # trying to get week numbers in the historical nfl odds df
-# NFL_ODDS_2019_CSV = 'data/nflodds2019.csv'
-#
-# odds_df = pd.DataFrame()
-# odds_df = pd.read_csv(NFL_ODDS_2019_CSV)
 
-# loading historical data from 2007 - 2019
+# loading historical projections
+PROJECTIONS_FILE = 'data/Projections/{year}/FD_{year}_week_{week}.csv'
+proj_df = pd.DataFrame()
+for year in range(2015, 2020):
+    for week in range(1, 17):
+        proj_df_temp = pd.read_csv(PROJECTIONS_FILE.format(year=year, week=week))
+        proj_df_temp['Week'] = week
+        proj_df_temp['Year'] = year
+        # proj_df_temp['Name'] = proj_df_temp['Name'].map(lambda x: x.lstrip('Jr\.').rstrip('Sr\.')
+        #                                                .rstrip(' II').rstrip(' III'))
+        proj_df_temp['Name'] = proj_df_temp['Name'].map(lambda x: x.replace('Jr.', '').replace('Sr.', '')
+                                                        .replace(' II', '').replace(' III', '').replace('.', '')
+                                                        .replace("\'", "").replace('Will Fuller V', 'Will Fuller'))
+
+        proj_df = pd.concat([proj_df, proj_df_temp], ignore_index=True)
+
+print('PROJECTIONS1')
+print(proj_df.head(50))
+proj_df = proj_df[proj_df['Position'].isin(['QB', 'TE', 'K', 'RB', 'WR', 'DST'])]
+proj_df = proj_df.rename(columns={'Team': 'Tm', 'FantasyPointsDraftKings': 'DKProj'})
+proj_df = proj_df[['Tm', 'Position', 'Name', 'Week', 'DKProj', 'Year', 'Opponent']]
+proj_df = proj_df.rename(columns={'Name': 'Player'})
+proj_df = proj_df.replace({'Tm': {'GB': 'GNB', 'NE': 'NWE', 'KC': 'KAN', 'SF': 'SFO', 'TB': 'TAM', 'NO': 'NOR',
+                                  'LV': 'OAK'}}) # compensate for acronyms changing over time
+proj_df = proj_df.replace({'Opponent': {'GB': 'GNB', 'NE': 'NWE', 'KC': 'KAN', 'SF': 'SFO', 'TB': 'TAM', 'NO': 'NOR',
+                                  'LV': 'OAK'}}) # compensate for acronyms changing over time
+
+# odds_df = odds_df.replace({'Tm': {'STL': 'LAR', 'SDG': 'LAC'}}) # compensate for acronyms changing over time
+
+print('PROJECTIONS TABLE')
+print(proj_df.head(200))
+
+
+# loading historical DVOA data from 2007 - 2019
 DVOA_FILE = 'data/DVOA_HISTORICAL_DATA.csv'
 dvoa_df = pd.read_csv(DVOA_FILE)
 
 print('velma')
 print(dvoa_df.head(50))
 
+# loading all of the odds from 2007 - 2020
 NFL_ODDS_BASE = 'data/NFLOdds/nflodds{}.csv'
 odds_df = pd.DataFrame()
 for year in range(2007, 2020):
-    # NFL_ODDS_CSV = 'data/NFLOdds/nflodds2019.csv'
     odds_temp_df = pd.read_csv(NFL_ODDS_BASE.format(year), skip_blank_lines=True)
     odds_temp_df['Year'] = year
     odds_df = odds_df.append(odds_temp_df, ignore_index=True)
@@ -138,7 +166,43 @@ odds_team_list = {
     'Houston': 'HOU',
     'HoustonTexans': 'HOU',
     'St.Louis': 'STL',
-    'SanDiego': 'SDG'
+    'SanDiego': 'SDG',
+    'LosAngeles': 'LAR'
+    }
+
+team_num_list = {
+    'GNB': 1,
+    'NWE': 2,
+    'PIT': 3,
+    'DAL': 4,
+    'NYG': 5,
+    'LAC': 6,
+    'SEA': 7,
+    'CIN': 8,
+    'ARI': 9,
+    'DET': 10,
+    'CAR': 11,
+    'LAR': 12,
+    'CLE': 13,
+    'TEN': 14,
+    'IND': 15,
+    'KAN': 16,
+    'JAX': 17,
+    'CHI': 18,
+    'ATL': 19,
+    'MIN': 20,
+    'PHI': 21,
+    'WAS': 22,
+    'NYJ': 23,
+    'BAL': 24,
+    'MIA': 25,
+    'SFO': 26,
+    'TAM': 27,
+    'BUF': 28,
+    'NOR': 29,
+    'OAK': 30,
+    'DEN': 31,
+    'HOU': 32
     }
 
 position_list = {
@@ -146,10 +210,10 @@ position_list = {
     'Running Back': 'RB',
     'Tight End': 'TE',
     'Quarterback': 'QB',
-    'Kicker': 'K'
+    'Kicker': 'K',
+    'Defense': 'DEF'
 
 }
-
 
 # try to loop through to change the team names then concatenate at end
 odds_df['Tm'] = odds_df['Team'].map(odds_team_list)
@@ -157,7 +221,8 @@ odds_df = odds_df.replace({'Tm': {'STL': 'LAR', 'SDG': 'LAC'}}) # compensate for
 # clean up the 'pk' values
 odds_df = odds_df.replace('pk', '0')
 
-print(odds_df.head(50))
+# print('dafny')
+# print(odds_df)
 
 # trying to make columns for spread and over under
 # start working code. get rid of columns don't really need
@@ -199,18 +264,34 @@ print(var_df.head(50))
 print('then...')
 print(odds_df_final.head(50))
 
-result = pd.merge(var_df, odds_df_final, how='inner', on=['Week', 'Tm', 'Year'])
-result = pd.merge(result, dvoa_df, how='inner', on=['Week', 'Tm', 'Year'])
-result = result.drop(['Unnamed: 0'], 1)
-
-print('merge result')
-print(result.head(50))
-
 
 # added this here so I can quickly spot check and make sure all the players match up with betting lines since 2007
+
+
+filename = ('var_df').upper() + '.csv'
+var_df.to_csv('data/{}'.format(filename))
+
+filename = ('odds_df_final').upper() + '.csv'
+odds_df_final.to_csv('data/{}'.format(filename))
+
+filename = ('dvoa_df').upper() + '.csv'
+dvoa_df.to_csv('data/{}'.format(filename))
+
+filename = ('odds_df').upper() + '.csv'
+odds_df.to_csv('data/{}'.format(filename))
+
+filename = ('proj_df').upper() + '.csv'
+proj_df.to_csv('data/{}'.format(filename))
+
+result = pd.merge(var_df, odds_df_final, how='inner', on=['Week', 'Tm', 'Year'])
+result = pd.merge(result, dvoa_df, how='inner', on=['Week', 'Tm', 'Year'])
+result = pd.merge(result, proj_df, how='inner', on=['Week', 'Tm', 'Year', 'Player'])
+result = result.drop(['Unnamed: 0'], 1)
+
 filename = ('merge_result_check_DVOA').upper() + '.csv'
 result.to_csv('data/{}'.format(filename))
 
+print('STEFFI DOO!')
 
 # convert the series into non string, so math works on it
 result['Spread'] = pd.to_numeric(result['Spread'], errors='coerce')
@@ -221,7 +302,11 @@ result = result[result['Pos'].isin(['QB', 'TE', 'K', 'RB', 'WR'])]
 result = result.drop(['StandardFantasyPoints', 'HalfPPRFantasyPoints', 'PassingYds', 'PassingTD', 'Int', 'PassingAtt',
                       'Cmp', 'RushingAtt', 'RushingYds', 'Rec', 'Tgt', 'ReceivingTD', 'FL', 'RushingTD',
                       'ReceivingYds'], axis=1)
+print('merge result')
+print(result.head(50))
 
+result['pro_diff'] = result['PPRFantasyPoints'] - result['DKProj']
+result['pro_diff%'] = result['pro_diff'] / result['DKProj']
 
 # create columns for projected score, and % of fantasy points out of projected score
 def project_score(row):
@@ -258,7 +343,7 @@ def get_next_percent(row):
     if week == 17:
         return row['% of Score']
 
-    answer = result.loc[(result.Player == player) & (result.Week == (week))]
+    answer = result.loc[(result.Player == player) & (result.Week == week)]
 
     if answer.empty:
         return 0
@@ -266,13 +351,27 @@ def get_next_percent(row):
 
     return answer
 
+def get_opp_dvoa(row):
+    opp = row['Opponent']
+    week = row['Week']
+    year = row['Year']
+    answer = result.loc[(result.Tm == opp) & (result.Week == week) & (result.Year == year)]
+    answer = answer.iloc[0].at['DEFENSEDVOA']
+
+    return answer
+
 
 # apply function to have 'next week' score in table as well, also add % of team score
 result['PPRFantasyPoints_next'] = result.apply(get_next_score, axis=1)
 result['Score'] = result.apply(project_score, axis=1)
-result['% of Score'] = result['PPRFantasyPoints']/result['Score'] * 100
+
+# changing to % of projection, since technically won't have this number later, so lets see if works
+result['% of Score'] = result['DKProj']/result['Score'] * 100
+# result['% of Score'] = result['PPRFantasyPoints']/result['Score'] * 100
 result['% of Score_next'] = result.apply(get_next_percent, axis=1)
 
+result = result.replace({'Opponent': {'STL': 'LAR', 'SDG': 'LAC'}}) # compensate for acronyms changing over time
+result['Opp DVOA'] = result.apply(get_opp_dvoa, axis=1)
 
 # just playing around with looking at correlation for specific players
 # lamar = result[result['Player'] == 'Julio Jones']
@@ -287,17 +386,16 @@ result['% of Score_next'] = result.apply(get_next_percent, axis=1)
 
 # looking at beginning p values before digging deep
 result = result.replace([np.nan, -np.nan], 0)  # remove inf values as a result of dividing by 0
+
+
 for k, v in position_list.items():
     if v == 'K':
         break
     pos_result = result[result['Pos'] == v]
     print('For the position ' + str(k) + ' the p value for Total DVOA is: ', end='')
-    # print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['ML']), end=' for O/U it is: ')
-    # print(pearsonr(pos_result['PPRFantasyPoints'], pos_result['O/U']))
-    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['TOTALDVOA']), end=' for OFFENSEDVOA it is: ')
-    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['OFFENSEDVOA']))
-    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['DEFENSEDVOA']), end=' for S.T. it is: ')
-    print(pearsonr(pos_result['PPRFantasyPoints_next'], pos_result['S.T.DVOA']))
+    print(pearsonr(pos_result['pro_diff'], pos_result['ML']), end=' for O/U it is: ')
+    print(pearsonr(pos_result['pro_diff'], pos_result['O/U']))
+
 
 print()
 print()
@@ -310,11 +408,13 @@ pos_map = {
     'WR': 2,
     'TE': 3,
     'QB': 4,
-    'K': 5,
-    'DEF': 6
+     'K': 5,
+    # 'DEF': 6
 }
 
 result['Pos_Num'] = result['Pos'].replace(pos_map)
+result['Tm_Num'] = result['Tm'].replace(team_num_list)
+print('test opp dvoa')
 print(result.head(50))
 
 
@@ -327,43 +427,68 @@ print(result.head(50))
 
 # TODO: temp switch to test only a couple teams. They would be the teams in the showdown. Prompt, or Automatically determined later
 # manual testing hack for running for two teams
-team1_result = result.loc[(result['Tm'] == 'HOU')]
-team2_result = result.loc[(result['Tm'] == 'KAN')]
-team_result_temp = team1_result.append(team2_result, ignore_index=True)
+# team1_result = result.loc[(result['Tm'] == 'HOU')]
+# team2_result = result.loc[(result['Tm'] == 'KAN')]
+# team_result_temp = team1_result.append(team2_result, ignore_index=True)
 
 # print(team_result_temp)
+
+# result = result.loc[(result['Pos'] == 'RB')]
+
+# going to try and run the numbers per player...I know its nuts, but going to try
+result['Player_hash'] = pd.factorize(result['Player'])[0]
+
+filename = ('result').upper() + '.csv'
+result.to_csv('data/{}'.format(filename))
+
 x = result[['ML',
 
 
                         'DEFENSEDVOA',
                         'OFFENSEDVOA',
-                        #'Spread',
+                        'Spread',
                         'Score',
-                        #'O/U',
-                        #'PPRFantasyPoints',
-                        '% of Score',
-                        #'Week',
-                        'Pos_Num']].values
+                        'O/U',
+                        'Tm_Num',
+                        'DKProj',
+                        'Opp DVOA',
+                        'Pos_Num',
+                        # 'Player_hash',
+                        # 'PPRFantasyPoints',
+                        # '% of Score',
+                        # 'Week',
+                        ]].values
 
+
+
+# y = result[['pro_diff%']].values
+# y = result[['pro_diff']].values
+
+y = result[['pro_diff']].values
 # y = result[['PPRFantasyPoints_next']].values
-y = result[['% of Score_next']].values  # need to figure out exactly what I'm doing here.
+# y = result[['% of Score_next']].values  # need to figure out exactly what I'm doing here.
 
 x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=4, test_size=0.2)
 lr = LinearRegression()
-scores = cross_val_score(lr, x, y, cv=10)
+scores = cross_val_score(lr, x, y, cv=9)
 print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
 
 x_corr = result[['ML',
 
                             'DEFENSEDVOA',
                             'OFFENSEDVOA',
-                            #'Spread',
+                            'Spread',
                             'Score',
-                            #'O/U',
-                            #'PPRFantasyPoints',
-                            '% of Score',
-                            #'Week',
-                            'Pos_Num']].corr()
+                            'O/U',
+                            'Tm_Num',
+                            'DKProj',
+                            'Opp DVOA',
+                            'Pos_Num',
+                            # 'Player_hash',
+                            # 'PPRFantasyPoints',
+                            # '% of Score',
+                            # 'Week',
+                            ]].corr()
 vif = pd.DataFrame(np.linalg.inv(x_corr.values), index= x_corr.index, columns=x_corr.columns)
 vif_mask = np.zeros_like(vif, dtype=np.bool); vif_mask[np.triu_indices_from(vif_mask)] = True
 
@@ -383,62 +508,63 @@ plt.show()
 # Going to try and see how it performs projecting score in week 2 of year
 #  based on week 1 projections, and previous years
 #   load data sources
-# pff_projections = 'data/PFFprojections2020Week1.csv'
-# df_pff = pd.read_csv(pff_projections)
-# print(df_pff.head())
-#
-# df_pff['Predicted2020/G'] = model.predict(team_result_temp[[
-#                              'ML',
-#                              'Spread',
-#                              'Score',
-#                              'O/U',
-#                              'PPRFantasyPoints',
-#                              '% of Score',
-#                              'Week',
-#                              'Pos_Num']].values)
-# print(df_pff)
+PROJECTIONS_FILE_2020 = 'data/Projections/2020/FD_2020_week_1_trial.csv'
+y_pro_df = pd.read_csv(PROJECTIONS_FILE_2020)
+y_pro_df['Tm_Num'] = y_pro_df['Tm'].replace(team_num_list)
 
-#
-# df2019 = pd.read_csv(YEARLY_URL.format(year=2019), index_col=0)
-# df2019 = df2019[['Player', 'Pos', 'G', 'Tgt', 'RushingAtt', 'PassingAtt', 'FantasyPoints']]
-# df2019['Pos'] = df2019['Pos'].replace(pos_map)
-#
-# df2019['Tgt/G'] = df2019['Tgt'] / df2019['G']
-# df2019['RushingAtt/G'] = df2019['RushingAtt'] / df2019['G']
-# df2019['PassingAtt/G'] = df2019['PassingAtt'] / df2019['G']
-# df2019['FantasyPoints/G'] = df2019['FantasyPoints'] / df2019['G']
-# df2019['FantasyPoints/Tgt'] = df2019['FantasyPoints'] / df2019['Tgt']
-# df2019['FantasyPoints/RushingAtt'] = df2019['FantasyPoints'] / df2019['RushingAtt']
-# df2019['FantasyPoints/PassingAtt'] = df2019['FantasyPoints'] / df2019['PassingAtt']
-# df2019 = df2019.replace([np.inf, -np.inf], 0)
-# df2019 = df2019.dropna()
-#
-# df2019['Predicted2020/G'] = model.predict(df2019[[
-#     'Tgt/G',
-#     'RushingAtt/G',
-#     'PassingAtt/G',
-#     'FantasyPoints/Tgt',
-#     'FantasyPoints/RushingAtt',
-#     'FantasyPoints/PassingAtt',
-#     'Pos']].values)
-#
-# df2019['Pos'] = df2019['Pos'].replace({v: k for k, v in pos_map.items()})
-#
-# pred2020 = df2019[['Player', 'Pos', 'Predicted2020/G']].sort_values(by='Predicted2020/G', ascending=False)
-# pred2020['FantasyPoints/G Rank'] = df2019['Predicted2020/G'].rank(ascending=False)
-#
-# pred2020.head(15)
+# creating new table with player hash and merging them for the predictive run
+
+print('before')
+print(y_pro_df.head())
+
+temp_df = result[['Player', 'Player_hash']]
+temp_df = temp_df.drop_duplicates()
+
+# accidently removed rookies or any new players
+# y_pro_df = pd.merge(y_pro_df, temp_df, how='left', on=['Player'])
+
+print('post merge')
+print(y_pro_df.head())
+
+
+y_pro_df['Predicted2020_week1'] = model.predict(y_pro_df[[  #should the df be 'result'?
+                              'ML',
+                              'DEFENSEDVOA',
+                              'OFFENSEDVOA',
+                              'Spread',
+                              'Score',
+                              'O/U',
+                              'Tm_Num',
+                              'DKProj',
+                              'Opp DVOA',
+                              'Pos_Num',
+                              # 'Player_hash',
+                              # 'PPRFantasyPoints',
+                              # '% of Score',
+                              # 'Week',
+                              ]].values)
+print('this is where we are')
+
+
+y_pro_df['pred%'] = y_pro_df['DKProj'] + y_pro_df['Predicted2020_week1']
+y_pro_df['mult'] = y_pro_df['pred%'] / y_pro_df['DKProj']
+print(y_pro_df)
+
+# odds_df['Week'] = odds_df['Week'].apply(lambda x: (x + 52) if x < 0 else x)
+
+filename = ('DFS_multipliers').upper() + '.csv'
+y_pro_df.to_csv('data/{}'.format(filename))
 
 
 #                   saving files for the future... maybe
 # checking if there is an argument to the command for '--save' so will save table to a csv for upload
 
-filename = ('2019_Weekly_Performance_Betting_Data').upper() + '.csv'
+filename = ('Historical Weekly_Performance_Betting_Data').upper() + '.csv'
 result.to_csv('data/{}'.format(filename))
 
 try:
     if argv[1] == '--save':
-        filename = ('2019_Weekly_Performance_Betting_Data').upper() + '.csv'
+        filename = ('Historical_Weekly_Performance_Betting_Data').upper() + '.csv'
         result.to_csv('data/{}'.format(filename))
 except IndexError:
     print(result.head())
@@ -527,10 +653,10 @@ def create_team_heatmaps(odds, positions):
 # create_team_heatmaps(odds_team_list, position_list)
 
 # runs linear regression graphs for every team, TIME SAVE. 'O/U','Spread', 'ML', and column are options
-x_axis = 'OFFENSEDVOA'
+x_axis = 'O/U'
 # can try running linear vs " % of Score " as well, leave blank for 'PPRFantasyPoints'
-y_axis = '% of Score'
-# linear_regress_test(odds_team_list, x_axis, y_axis)
+y_axis = 'PPRFantasyPoints'
+linear_regress_test(odds_team_list, x_axis, y_axis)
 
 
 # try sci-learn stuff

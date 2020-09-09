@@ -42,6 +42,8 @@ print(df_pff.head())
 dk_salaries = 'data/DKSalaries.csv'
 df_dk = pd.read_csv(dk_salaries, skiprows=7) # because of format from DK, need to skip the first 7 rows
 # cleaning up DKSalary download
+print('fix ID')
+print(df_dk)
 df_dk = df_dk.drop(df_dk.columns[[0, 1, 2, 3, 4, 5, 6]], axis=1)
 df_dk = df_dk.drop(['Name + ID', 'ID', 'Game Info'], 1)
 print(df_dk.head())
@@ -334,10 +336,12 @@ df_final = df_final.sort_values(by=['Total Proj'], ascending=False)
 print(df_final)
 
 print('-----------------')
-# taking the top 20
-df_final = df_final.head(n=20)
+# taking the top 50
+df_final = df_final.head(n=50)
 print(df_final)
 
+filename = ('Showdown_Generator').upper() + '.csv'
+df_final.to_csv('data/{}'.format(filename))
 
 # calculating how long it takes to run
 print(datetime.now() - begin_time)
