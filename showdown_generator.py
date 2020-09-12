@@ -60,8 +60,6 @@ print("MAKING LIST")
 team_list = df_dk.TeamAbbrev.to_list()
 set_team_list = set(team_list)
 team_list = list(set_team_list)
-# for i in range(len(team_list)):
-#     print(team_list[i])
 team_count = Counter(team_list)
 # reset count to 0
 team_count[team_list[0]] = 0
@@ -139,7 +137,7 @@ def is_valid_roster(df_temp):
     df = df_temp
 
     # setting salary column
-    df_salary = df[{'Salary', 'Salary1', 'Salary2', 'Salary3', 'Salary5'}]
+    df_salary = df[{'Salary', 'Salary1', 'Salary2', 'Salary3', 'Salary4', 'Salary5'}]
     df_salary['Total Salary'] = df_salary.sum(axis=1)
     df.at[0, 'Total Salary'] = df_salary.at[0, 'Total Salary']
 
@@ -243,6 +241,9 @@ def modify_players(captains, flex):
         # updating your selected choice
         print("Player Selected: " + flex_p.name)
         print("Player Current Multiplier: " + str(flex_p.mult))
+        print("Player Current Projection: " + str(flex_p.proj))
+        combined = flex_p.proj * flex_p.mult
+        print("Updated Projection: " + str(combined))
         mult = float(input("Enter multiplier: "))
         flex_p.set_multiplier(mult)
         cpt_p.set_multiplier(mult)
@@ -340,7 +341,7 @@ print('-----------------')
 df_final = df_final.head(n=50)
 print(df_final)
 
-filename = ('Showdown_Generator').upper() + '.csv'
+filename = ('Showdown_Generator_3').upper() + '.csv'
 df_final.to_csv('data/{}'.format(filename))
 
 # calculating how long it takes to run
