@@ -1,3 +1,7 @@
+# this code will go scrape the fantasyoutsiders website to gather DVOA numbers on a weekly basis
+# It is confirmed to work through 2019
+
+
 import requests
 from bs4 import BeautifulSoup as BS
 import pandas as pd

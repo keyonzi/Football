@@ -30,7 +30,7 @@ def fix_defense(player):
 
 
 #           load data sources
-pff_projections = 'data/PFFprojections2020Week1.csv'
+pff_projections = 'data/PFFprojections2020.csv'
 df_pff = pd.read_csv(pff_projections)
 print(df_pff.head())
 
@@ -47,6 +47,18 @@ print(df_dk)
 df_dk = df_dk.drop(df_dk.columns[[0, 1, 2, 3, 4, 5, 6]], axis=1)
 df_dk = df_dk.drop(['Name + ID', 'ID', 'Game Info'], 1)
 print(df_dk.head())
+
+
+# making the names consistent between the two sources
+df_pff['playerName'] = df_pff['playerName'].map(lambda x: x.replace('Jr.', '').replace('Sr.', '')
+                                                        .replace(' III', '').replace(' II', '').replace('.', '')
+                                                        .replace("\'", "").replace('Will Fuller V', 'Will Fuller'))
+
+df_dk['Name'] = df_dk['Name'].map(lambda x: x.replace('Jr.', '').replace('Sr.', '')
+                                                        .replace(' III', '').replace(' II', '').replace('.', '')
+                                                        .replace("\'", "").replace('Will Fuller V', 'Will Fuller'))
+
+
 
 #       add projection to salaries
 df_pff_proj = df_pff[['playerName', 'fantasyPoints']]   # creating a new temp table to merge
@@ -69,11 +81,11 @@ team_count[team_list[1]] = 0
 df_dk["fantasyPoints"] = np.where(df_dk["Roster Position"] == 'CPT', round(df_dk['fantasyPoints'] * 1.5, 2), df_dk['fantasyPoints'])
 df_dk['Roster'] = df_dk['Roster Position']
 df_dk = df_dk.drop(['Roster Position'], axis=1)
-print(df_dk.head())
+print(df_dk)
 
 # adding average fantasy points, for 0 projections
 df_dk['fantasyPoints'] = df_dk['fantasyPoints'].fillna(df_dk['AvgPointsPerGame'])
-print(df_dk.head())
+print(df_dk)
 
 
 #       attempt to make player objects that can be used later to create lineups
@@ -99,18 +111,25 @@ for index, row in df_dk.iterrows():
     else:
         flx_list.append(row['Name'])
 
+print("Here is the CPT list:")
+print('')
+print("-" * 30)
 
 # a test to see that the object is set correctly
 for i in cpt_list:
     print(i.__str__())
     # print(i.ros)
 
+print("Here is the FLX list:")
+print('')
+print("-" * 30)
+
 for i in flx_list:
     print(i.__str__())
     # print(i.ros)
 
-for i in players_list:
-    print(i.__str__())
+# for i in players_list:
+#     print(i.__str__())
 
 #for testing loop in recursion shortening captain list
 # cpt_list = cpt_list[:12]
@@ -199,6 +218,7 @@ def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
                 # if the flex is same as captain, skip
                 if captain_player == flex_player.name:
                     continue
+
                 # counting the team for the player
                 team_ct[flex_player.tm] += 1
                 # setting the cells as the flex player
@@ -217,9 +237,10 @@ def create_roster(captains, flex, df_temp, slot, df_final, team_counter):
     print("Number of Rows: " + str(len(index)))
     return df_f
 
-def modify_players(captains, flex):
+def modify_players(captains, flex, dkdf):
     cpt_list = captains
     flx_list = flex
+    df_dk = dkdf
 
     for i in range(len(flx_list)):
         print(str(i) + ': ', end="")
@@ -244,6 +265,7 @@ def modify_players(captains, flex):
         print("Player Current Projection: " + str(flex_p.proj))
         combined = flex_p.proj * flex_p.mult
         print("Updated Projection: " + str(combined))
+        print("Salary: " + str(flex_p.sal))
         mult = float(input("Enter multiplier: "))
         flex_p.set_multiplier(mult)
         cpt_p.set_multiplier(mult)
@@ -257,6 +279,16 @@ def modify_players(captains, flex):
             print(flx_list[i].name)
 
         print()
+
+    # add captain multiplier to projections in table
+    # df_dk["fantasyPoints"] = np.where(df_dk["Roster"] == 'CPT', round(df_dk['fantasyPoints'] * 1.5, 2),
+    #                                   df_dk['fantasyPoints'])
+    # for i in cpt_list:
+    #     print(i.__str__())
+    #     # print(i.ros)
+    #
+    # print(df_dk)
+
     return cpt_list, flx_list
 
 def edit_avail_players(captains, flex):
@@ -271,7 +303,7 @@ def edit_avail_players(captains, flex):
         if choice == 0:
             cpt_list, flx_list = remove_players(cpt_list, flx_list)
         elif choice == 1:
-            cpt_list, flx_list = modify_players(cpt_list, flx_list)
+            cpt_list, flx_list = modify_players(cpt_list, flx_list, df_dk)
         else:
             break
 

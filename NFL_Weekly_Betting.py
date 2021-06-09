@@ -1,3 +1,8 @@
+# the master file that creates one large csv that incorporates all the betting lines, projections, and actual
+# statistics. need to break out the analysis part of the code, and use this for generation only to speed things up
+# it isn't necessary to run all the data cleaning every time
+
+
 import requests
 import pandas as pd
 import numpy as np
@@ -267,21 +272,20 @@ print(odds_df_final.head(50))
 
 # added this here so I can quickly spot check and make sure all the players match up with betting lines since 2007
 
-
-filename = ('var_df').upper() + '.csv'
-var_df.to_csv('data/{}'.format(filename))
-
-filename = ('odds_df_final').upper() + '.csv'
-odds_df_final.to_csv('data/{}'.format(filename))
-
-filename = ('dvoa_df').upper() + '.csv'
-dvoa_df.to_csv('data/{}'.format(filename))
-
-filename = ('odds_df').upper() + '.csv'
-odds_df.to_csv('data/{}'.format(filename))
-
-filename = ('proj_df').upper() + '.csv'
-proj_df.to_csv('data/{}'.format(filename))
+# filename = ('var_df').upper() + '.csv'
+# var_df.to_csv('data/{}'.format(filename))
+#
+# filename = ('odds_df_final').upper() + '.csv'
+# odds_df_final.to_csv('data/{}'.format(filename))
+#
+# filename = ('dvoa_df').upper() + '.csv'
+# dvoa_df.to_csv('data/{}'.format(filename))
+#
+# filename = ('odds_df').upper() + '.csv'
+# odds_df.to_csv('data/{}'.format(filename))
+#
+# filename = ('proj_df').upper() + '.csv'
+# proj_df.to_csv('data/{}'.format(filename))
 
 result = pd.merge(var_df, odds_df_final, how='inner', on=['Week', 'Tm', 'Year'])
 result = pd.merge(result, dvoa_df, how='inner', on=['Week', 'Tm', 'Year'])
@@ -455,7 +459,7 @@ x = result[['ML',
                         'Pos_Num',
                         # 'Player_hash',
                         # 'PPRFantasyPoints',
-                        # '% of Score',
+                        '% of Score',
                         # 'Week',
                         ]].values
 
@@ -486,7 +490,7 @@ x_corr = result[['ML',
                             'Pos_Num',
                             # 'Player_hash',
                             # 'PPRFantasyPoints',
-                            # '% of Score',
+                            '% of Score',
                             # 'Week',
                             ]].corr()
 vif = pd.DataFrame(np.linalg.inv(x_corr.values), index= x_corr.index, columns=x_corr.columns)
@@ -511,6 +515,7 @@ plt.show()
 PROJECTIONS_FILE_2020 = 'data/Projections/2020/FD_2020_week_1_trial.csv'
 y_pro_df = pd.read_csv(PROJECTIONS_FILE_2020)
 y_pro_df['Tm_Num'] = y_pro_df['Tm'].replace(team_num_list)
+y_pro_df['Pos_Num'] = y_pro_df['Pos'].replace(pos_map)
 
 # creating new table with player hash and merging them for the predictive run
 
@@ -540,7 +545,7 @@ y_pro_df['Predicted2020_week1'] = model.predict(y_pro_df[[  #should the df be 'r
                               'Pos_Num',
                               # 'Player_hash',
                               # 'PPRFantasyPoints',
-                              # '% of Score',
+                              '% of Score',
                               # 'Week',
                               ]].values)
 print('this is where we are')
@@ -634,7 +639,7 @@ def linear_regress_test(odds, xaxis='Spread', yaxis='PPRFantasyPoints'):
     # xaxis = type
     for k, v in odds.items():
         team_result = result[result['Tm'] == v]
-        sns.lmplot(data=team_result, x=xaxis, y=yaxis, hue='Pos', height=10, fit_reg=True)
+        sns.lmplot(data=team_result, x=xaxis, y=yaxis, hue='Pos', height=7, fit_reg=True)
         plt.title(v)    # adds title of team
         plt.show()
 
@@ -653,7 +658,7 @@ def create_team_heatmaps(odds, positions):
 # create_team_heatmaps(odds_team_list, position_list)
 
 # runs linear regression graphs for every team, TIME SAVE. 'O/U','Spread', 'ML', and column are options
-x_axis = 'O/U'
+x_axis = 'Spread'
 # can try running linear vs " % of Score " as well, leave blank for 'PPRFantasyPoints'
 y_axis = 'PPRFantasyPoints'
 linear_regress_test(odds_team_list, x_axis, y_axis)

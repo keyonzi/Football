@@ -1,3 +1,5 @@
+# this is a class so can store player information for use in the showdown generator
+
 
 class Player:
     def __init__(self, name='None', team='None', projection=0, position='None', roster='None', salary=0, ppg=0.0,
