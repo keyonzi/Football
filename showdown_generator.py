@@ -30,7 +30,7 @@ def fix_defense(player):
 
 
 #           load data sources
-pff_projections = 'data/PFFprojections2020.csv'
+pff_projections = 'data/projections.csv'
 df_pff = pd.read_csv(pff_projections)
 print(df_pff.head())
 
@@ -40,7 +40,7 @@ print(df_pff.head())
 
 
 dk_salaries = 'data/DKSalaries.csv'
-df_dk = pd.read_csv(dk_salaries, skiprows=7) # because of format from DK, need to skip the first 7 rows
+df_dk = pd.read_csv(dk_salaries, skiprows=7) # because of fo0rmat from DK, need to skip the first 7 rows
 # cleaning up DKSalary download
 print('fix ID')
 print(df_dk)

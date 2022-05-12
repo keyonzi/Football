@@ -1,2 +1,12 @@
+#Mac Files
+.DS_Store
+
+# CSVs
+*.csv
+
+#Folders
+/data/*
+/__pycache__/
+
 .env
 venv
